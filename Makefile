@@ -19,7 +19,7 @@ DRIVER_OBJ := $(OBJ_DIR)/driver.o
 SCALAR_OBJ := $(OBJ_DIR)/stats_scalar.o
 VECTOR_OBJ := $(OBJ_DIR)/stats_vector.o
 
-.PHONY: all clean run-scalar run-vector dirs
+.PHONY: all clean run-scalar run-vector dirs check-avx2 gen-data verify
 
 all: dirs $(BIN_DIR)/norm_scalar $(BIN_DIR)/norm_vector
 
@@ -47,6 +47,21 @@ run-scalar: $(BIN_DIR)/norm_scalar
 
 run-vector: $(BIN_DIR)/norm_vector
 	./$(BIN_DIR)/norm_vector data/input.dat data/output_vector.dat 10
+
+# Atajos de conveniencia para generacion de datos
+check-avx2:
+	@grep -q avx2 /proc/cpuinfo && echo "AVX2: soportado" || echo "AVX2: NO soportado"
+
+gen-data: dirs
+	python3 tools/gen_input.py 1000000 data/input.dat random 42
+	python3 tools/gen_input.py 8    data/input_small.dat random 1
+	python3 tools/gen_input.py 15   data/input_tail.dat  random 1
+	python3 tools/gen_input.py 1000 data/input_const.dat constant
+	python3 tools/gen_input.py 0    data/input_empty.dat random
+
+verify: all
+	./$(BIN_DIR)/norm_vector data/input.dat data/output_vector.dat 5
+	python3 tools/verify_reference.py data/input.dat data/output_vector.dat.stats.txt
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
