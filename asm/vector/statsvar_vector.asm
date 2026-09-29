@@ -18,7 +18,7 @@ sum_array:
 .sum_vec_loop: ;Loop para cargar vectores
 	cmp eax, ecx		  	 ;Indice del bucle - N(redondeado) 	
 	jge .sum_reduce		  	 ;Si eax >= ecx jump a .sum_reduce
-	vmovups ymm1,[rdi + rax*4]	 ;Carga 8 floats unaligned
+	vmovaps ymm1,[rdi + rax*4]	 ;Carga 8 floats unaligned
 	vaddps ymm0, ymm0, ymm1		 ;Suma de 8 floats a la vez ymm0 = ymm0 + ymm1
 	add eax, 8			 ;Suma 8 al N para que vaya al siguiente float
 	jmp .sum_vec_loop
@@ -91,7 +91,7 @@ compute_stats:
 	jge .stats_reduce		;....salte a .stats_reduce
 
 	;Calculo varianza
-	vmovups ymm1, [rbx + rax*4]	;8 floats del array
+	vmovaps ymm1, [rbx + rax*4]	;8 floats del array
 	vsubps ymm2, ymm1, ymm7		;ymm2 = ymm1 - ymm7 
 	vmulps ymm2, ymm2, ymm2		;ymm2 = ymm2*ymm2
 	vaddps ymm4, ymm4, ymm2 	;ymm4 = ymm4 + ymm2 
@@ -200,10 +200,10 @@ normalize_array:
 	cmp eax, ecx 		     ;Cuando el contador supere N pase a....
 	jge .tail		     ;... la tag .tail
 
-	vmovups ymm1, [rdi + rax*4]   ;Cargo 8 floats
+	vmovaps ymm1, [rdi + rax*4]   ;Cargo 8 floats
 	vsubps ymm1, ymm1, ymm2      ;ymm1 = in[i] - promedio
 	vdivps ymm1, ymm1, ymm3      ; /stddev
-	vmovups [rsi + rax*4], ymm1  ;guardo 8 floats en out(ymm1)
+	vmovaps [rsi + rax*4], ymm1  ;guardo 8 floats en out(ymm1)
 	add eax, 8		     ;Paso de float
 	jmp .loop
 

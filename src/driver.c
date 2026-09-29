@@ -4,6 +4,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <x86intrin.h>  /* __rdtsc: contador de ciclos del TSC */
 
 #include "stats.h"
 
@@ -82,7 +83,8 @@ static void write_output(const char *path, const float *arr, int n) {
  * tenga que parsear el binario de salida). */
 static void write_stats_summary(const char *path, int n, float sum,
                                  float mean, float var, float stddev,
-                                 float min, float max, double ms) {
+                                 float min, float max, double ms,
+                                 double sd_ms, double cycles) {
     FILE *f = fopen(path, "w");
     if (!f) {
         fprintf(stderr, "Aviso: no se pudo crear el resumen '%s'\n", path);
@@ -96,6 +98,8 @@ static void write_stats_summary(const char *path, int n, float sum,
     fprintf(f, "min=%.9g\n", min);
     fprintf(f, "max=%.9g\n", max);
     fprintf(f, "kernel_ms=%.6f\n", ms);
+    fprintf(f, "kernel_ms_sd=%.6f\n", sd_ms);
+    fprintf(f, "kernel_cycles=%.0f\n", cycles);
     fclose(f);
 }
 
@@ -125,22 +129,35 @@ int main(int argc, char **argv) {
     float *out = alloc_aligned_floats((size_t)(n > 0 ? n : 1));
 
     float sum = 0.0f, mean = 0.0f, var = 0.0f, min = 0.0f, max = 0.0f;
-    double total_ms = 0.0;
+    double total_ms = 0.0, sum_sq_ms = 0.0;
+    unsigned long long total_cycles = 0;
     struct timespec t0, t1;
 
     /* --- Seccion medida: sum_array + compute_stats + normalize_array --- */
     for (int r = 0; r < reps; r++) {
         clock_gettime(CLOCK_MONOTONIC, &t0);
+        unsigned long long c0 = __rdtsc();
 
         sum = sum_array(in, n);
         compute_stats(in, n, &mean, &var, &min, &max);
         float stddev_r = sqrtf(var);
         normalize_array(in, out, n, mean, stddev_r);
 
+        unsigned long long c1 = __rdtsc();
         clock_gettime(CLOCK_MONOTONIC, &t1);
-        total_ms += elapsed_ms(t0, t1);
+
+        double ms_r = elapsed_ms(t0, t1);
+        total_ms += ms_r;
+        sum_sq_ms += ms_r * ms_r;
+        total_cycles += (c1 - c0);
     }
     double avg_ms = total_ms / reps;
+    /* Desviacion estandar poblacional de los tiempos por repeticion
+     * (el enunciado pide promedio +/- desviacion en la seccion 2.4.b). */
+    double var_ms = sum_sq_ms / reps - avg_ms * avg_ms;
+    if (var_ms < 0.0) var_ms = 0.0;
+    double sd_ms = sqrt(var_ms);
+    double avg_cycles = (double)total_cycles / reps;
     float stddev = sqrtf(var);
 
     printf("N        = %d\n", n);
@@ -150,13 +167,15 @@ int main(int argc, char **argv) {
     printf("StdDev   = %.6f\n", stddev);
     printf("Minimo   = %.6f\n", min);
     printf("Maximo   = %.6f\n", max);
-    printf("Tiempo promedio del kernel (%d rep.): %.6f ms\n", reps, avg_ms);
+    printf("Tiempo promedio del kernel (%d rep.): %.6f ms (+/- %.6f ms)\n",
+           reps, avg_ms, sd_ms);
+    printf("Ciclos promedio del kernel (%d rep.): %.0f ciclos\n", reps, avg_cycles);
 
     write_output(output_path, out, n);
 
     char summary_path[1024];
     snprintf(summary_path, sizeof(summary_path), "%s.stats.txt", output_path);
-    write_stats_summary(summary_path, n, sum, mean, var, stddev, min, max, avg_ms);
+    write_stats_summary(summary_path, n, sum, mean, var, stddev, min, max, avg_ms, sd_ms, avg_cycles);
 
     free(in);
     free(out);

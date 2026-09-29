@@ -14,6 +14,7 @@ Uso:
         random    (por defecto) valores aleatorios en [-100, 100]
         constant  todos los valores iguales a 5.0 (var = 0, caso borde)
         edge      mezcla de valores extremos, negativos y muy pequenos
+        negative  solo valores negativos en [-100, -1]
 """
 import struct
 import random
@@ -28,6 +29,10 @@ def gen_constant(n):
     return [5.0 for _ in range(n)]
 
 
+def gen_negative(n):
+    return [random.uniform(-100.0, -1.0) for _ in range(n)]
+
+
 def gen_edge(n):
     base = [-1e6, 1e6, 0.0, -0.0001, 0.0001, -1.0, 1.0]
     return [base[i % len(base)] for i in range(n)]
@@ -35,7 +40,7 @@ def gen_edge(n):
 
 def main():
     if len(sys.argv) < 3:
-        print(f"Uso: {sys.argv[0]} <n> <salida.dat> [random|constant|edge] [semilla]")
+        print(f"Uso: {sys.argv[0]} <n> <salida.dat> [random|constant|negative|edge] [semilla]")
         sys.exit(1)
 
     n = int(sys.argv[1])
@@ -48,6 +53,8 @@ def main():
         values = gen_random(n)
     elif mode == "constant":
         values = gen_constant(n)
+    elif mode == "negative":
+        values = gen_negative(n)
     elif mode == "edge":
         values = gen_edge(n)
     else:
