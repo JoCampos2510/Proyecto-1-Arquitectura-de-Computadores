@@ -219,14 +219,12 @@ normalize_array:
 	jmp .tail
 
 .copy:
-	xor eax, eax 		     ;Pone eax en 0
-
+	vxorps xmm1, xmm1, xmm1      ; xmm1 = 0.0 (constante, fuera del bucle)
+	xor eax, eax
 .copy_next:
-	cmp eax, edx		     ;Cuando el contador sea mayor o igual a los elementos del arreglo...
-	jge .done 		     ;...salta a done 
-
-	vmovss xmm1,[rdi +rax*4]     ;Carga float en in
-	vmovss [rsi + rax*4], xmm1   ;Lo copia en out
+	cmp eax, edx
+	jge .done
+	vmovss [rsi + rax*4], xmm1   ; out[i] = 0.0 (en vez de copiar in[i])
 	inc eax
 	jmp .copy_next
 
