@@ -44,8 +44,8 @@ normalize_array:
 .loop_zero_std:
     cmp     eax, edx
     jge     .done
-    movss   xmm2, [rsi + rax*4]   ; out[i] = 0.0 directamente
-    movss   [rsi + rax*4], xmm2
+    movss   xmm2, [rdi + rax*4]   ; in[i]
+    movss   [rsi + rax*4], xmm2   ; out[i] = in[i]  (sigma = 0)
     inc     eax
     jmp     .loop_zero_std
 

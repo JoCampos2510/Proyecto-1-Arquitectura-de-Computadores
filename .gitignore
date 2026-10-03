@@ -1,0 +1,35 @@
+# --- Artefactos de compilacion (se regeneran con make) ---
+obj/
+bin/
+*.o
+
+# --- Datos generados (se regeneran con make data) ---
+# El de 5e7 elementos pesa ~200 MB y supera el limite de GitHub (100 MB)
+data/
+*.dat
+*.stats.txt
+*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+
+# --- GDB y perf ---
+.gdb_history
+perf.data
+perf.data.old
+
+# --- Auxiliares de LaTeX (el PDF final si se versiona) ---
+*.aux
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# --- Editores y sistema ---
+*.swp
+*~
+.vscode/
+.idea/
+.DS_Store

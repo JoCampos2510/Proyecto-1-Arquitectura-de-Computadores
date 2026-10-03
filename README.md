@@ -1,118 +1,219 @@
-# Esqueleto de proyecto: Normalizador estadistico vectorizado (NASM + C)
+# Normalizador estadístico vectorizado (x86-64 NASM, escalar vs. AVX2)
 
-Este es el punto de partida para el proyecto "Programacion Vectorial en
-Ensamblador x86-64 (NASM/Linux)". **Aqui no esta la solucion**: contiene
-la estructura, las firmas de las funciones y **un** ejemplo completo por
-version (`sum_array`) que sirve de patron. El resto de las funciones
-(`compute_stats`, `normalize_array`) estan marcadas con `TODO` y deben
-ser implementadas por el estudiante, tanto en la version escalar como
-en la vectorial.
+Proyecto 1 de Arquitectura de Computadores, Escuela de Ingeniería Electrónica, Tecnológico de Costa Rica.
 
-## Estructura
+El programa calcula los estadísticos descriptivos de un arreglo de floats de precisión simple (suma, media, varianza poblacional, desviación estándar, mínimo y máximo) y produce su versión normalizada (z-score):
+
+```
+y[i] = (x[i] - μ) / σ
+```
+
+El núcleo de cómputo está implementado en ensamblador NASM en dos versiones funcionalmente equivalentes:
+
+- **Escalar:** instrucciones escalares de SSE (`movss`, `addss`, `divss`, ...), un elemento por iteración.
+- **Vectorial:** instrucciones AVX2 sobre registros YMM (`vmovaps`, `vaddps`, `vdivps`, ...), ocho elementos por iteración, con reducción horizontal y bucle de remanente.
+
+Un *driver* en C lee la entrada, reserva memoria alineada a 32 bytes, mide el tiempo del kernel y escribe los resultados.
+
+## Autores
+
+- Josué Campos Herrera
+- Eduardo Franco Román Vargas
+
+## Estructura del repositorio
 
 ```
 .
-├── Makefile
-├── include/
-│   └── stats.h                # Firmas compartidas por ambas versiones
-├── src/
-│   └── driver.c                # Programa principal (E/S, timing, impresion)
 ├── asm/
-│   ├── scalar/
-│   │   └── stats_scalar.asm    # Version escalar (SSE escalar)
-│   └── vector/
-│       └── stats_vector.asm    # Version vectorial (AVX2)
+│   ├── scalar/stats_scalar.asm      # Kernels escalares
+│   └── vector/statsvar_vector.asm   # Kernels vectoriales (AVX2)
+├── include/stats.h                  # Firmas comunes de los kernels
+├── src/driver.c                     # Driver en C (E/S, memoria, medición)
 ├── tools/
-│   ├── gen_input.py            # Genera archivos de entrada de prueba
-│   └── verify_reference.py     # Verifica resultados contra referencia en Python puro
-└── data/                        # Se crea al compilar: entradas/salidas .dat
+│   ├── generate_test_data.py        # Genera los archivos de entrada
+│   ├── verify.py                    # Verifica contra la referencia NumPy
+│   ├── compare_kernels.py           # Compara escalar vs. vectorial
+│   ├── run_benchmark.py             # Mide el rendimiento (30 repeticiones)
+│   └── plot_speedup.py              # Grafica el speedup
+├── Makefile
+└── README.md
 ```
+
+Las carpetas `obj/`, `bin/` y `data/` se generan al compilar y ejecutar.
 
 ## Requisitos
 
-- Linux con CPU compatible con AVX2 (verificar con `lscpu | grep avx2`).
-- `nasm`, `gcc`, `make`, `python3`.
-- `gdb` y, opcionalmente, `perf` (paquete `linux-tools`) para las partes
-  de verificacion y medicion de rendimiento del proyecto.
+- Linux x86-64 con soporte AVX2
+- NASM ≥ 2.15, GCC, GDB ≥ 10
+- Python 3 con NumPy y Matplotlib
+- `perf` (opcional, para los contadores de hardware)
 
-## Compilar
+En Ubuntu:
+
+```bash
+sudo apt install nasm gcc gdb python3-numpy python3-matplotlib
+sudo apt install linux-tools-common linux-tools-$(uname -r)   # perf
+```
+
+Para verificar el soporte de AVX2:
+
+```bash
+make check-avx2
+```
+
+## Compilación
 
 ```bash
 make
 ```
 
-Genera `bin/norm_scalar` y `bin/norm_vector`: dos ejecutables que
-comparten el mismo `driver.c` pero enlazan con kernels distintos
-(`obj/stats_scalar.o` u `obj/stats_vector.o`).
+Produce dos binarios que comparten el mismo driver:
 
-## Generar datos de prueba
+- `bin/norm_scalar`: enlazado con los kernels escalares
+- `bin/norm_vector`: enlazado con los kernels vectoriales
+
+Si el archivo vectorial se renombra, se puede indicar la ruta al compilar:
 
 ```bash
-python3 tools/gen_input.py 1000000 data/input.dat random
-python3 tools/gen_input.py 8       data/input_small.dat random
-python3 tools/gen_input.py 1000    data/input_constant.dat constant
-python3 tools/gen_input.py 0       data/input_empty.dat random
+make ASM_VECTOR=asm/vector/otro_nombre.asm
 ```
 
-Genere tambien casos con `N` no multiplo de 8 (por ejemplo 7, 15, 1001)
-para probar el manejo del remanente.
-
-## Ejecutar
+## Uso
 
 ```bash
-./bin/norm_scalar data/input.dat data/output_scalar.dat 30
-./bin/norm_vector data/input.dat data/output_vector.dat 30
+./bin/norm_vector <input.dat> <output.dat> [repeticiones]
 ```
 
-El tercer argumento es el numero de repeticiones del kernel, usado para
-promediar el tiempo medido con `clock_gettime` (util para sus mediciones
-de rendimiento con distintos tamanos de `N`).
+- `input.dat`: archivo binario de entrada
+- `output.dat`: archivo binario con el arreglo normalizado
+- `repeticiones`: veces que se repite el kernel para promediar el tiempo (por defecto, 1)
 
-Cada corrida tambien escribe `data/output_scalar.dat.stats.txt` (o
-`_vector.dat.stats.txt`) con un resumen en texto plano de los
-estadisticos y el tiempo del kernel.
+Además de imprimir los resultados en consola, el driver escribe un resumen en texto plano en `<output.dat>.stats.txt`.
 
-## Verificar correctud
+Ejemplo:
 
 ```bash
-python3 tools/verify_reference.py data/input.dat data/output_scalar.dat.stats.txt
-python3 tools/verify_reference.py data/input.dat data/output_vector.dat.stats.txt
+make data
+./bin/norm_vector data/input_n1000.dat data/output_vector.dat 10
 ```
 
-## Lo que debe implementar el estudiante
+### Formato de los archivos (little endian)
 
-1. **`asm/scalar/stats_scalar.asm`**: completar `compute_stats` y
-   `normalize_array` con instrucciones escalares (`movss`, `addss`,
-   `subss`, `mulss`, `divss`, `sqrtss`, `comiss`, etc.).
-2. **`asm/vector/stats_vector.asm`**: completar `compute_stats` y
-   `normalize_array` con AVX2 (`vmovaps`/`vmovups`, `vaddps`, `vsubps`,
-   `vmulps`, `vdivps`, `vminps`, `vmaxps`, `vbroadcastss`, reduccion
-   horizontal), **manejando el remanente** igual que en el `sum_array`
-   de ejemplo.
-3. Generar sus propios archivos de prueba con `gen_input.py` para los
-   casos borde exigidos en la propuesta (N=0, N=1, N no multiplo de 8,
-   valores constantes, valores negativos/extremos).
-4. Usar GDB para inspeccionar registros YMM y memoria en un caso
-   pequeno, como se pide en la propuesta (ver ejemplo mas abajo).
-5. Medir tiempos con distintos tamanos de `N` (use el argumento de
-   repeticiones del driver) y, opcionalmente, `perf stat`.
+| Campo | Tipo | Tamaño |
+|-------|------|--------|
+| N | `int32` | 4 bytes |
+| arr[0..N-1] | `float32` | N × 4 bytes |
 
-## Notas de depuracion con GDB
+Los archivos de entrada y de salida usan el mismo formato.
 
-Los binarios se compilan con simbolos de depuracion (`-g` en gcc y
-`-g -F dwarf` en nasm), por lo que se puede poner breakpoints
-directamente en las etiquetas del ensamblador:
+## Targets del Makefile
+
+| Comando | Descripción |
+|---------|-------------|
+| `make` | Compila ambos binarios |
+| `make check-avx2` | Verifica el soporte de AVX2 del procesador |
+| `make data` | Genera los archivos de entrada (solo la primera vez) |
+| `make run-scalar` / `make run-vector` | Ejecuta una versión sobre `INPUT` (por defecto `data/input_n1000.dat`) |
+| `make test` | Verifica ambas versiones en los casos pequeños y de borde (tabla resumida) |
+| `make test-scalar` / `make test-vector` | Igual que `make test`, para una sola versión |
+| `make verify-scalar` / `make verify-vector` | Verifica **todos** los tamaños, incluidos los de rendimiento, con el detalle completo |
+| `make compare INPUT=...` | Compara escalar contra vectorial sobre una misma entrada |
+| `make bench` | Mide el rendimiento de ambas versiones (30 repeticiones por tamaño) |
+| `make plot` | Genera `data/speedup.png` a partir de los resultados de `make bench` |
+| `make clean` | Borra objetos, binarios y salidas de prueba |
+| `make distclean` | Además borra los datos generados |
+
+Las variables `INPUT` y `REPS` se pueden cambiar desde la línea de comandos, por ejemplo `make bench REPS=50`.
+
+## Datos de prueba
+
+`make data` ejecuta `tools/generate_test_data.py` con semilla 42 y genera:
+
+| Grupo | Archivos |
+|-------|----------|
+| Correctitud | `input_n0`, `input_n1`, `input_n7`, `input_n8`, `input_n15`, `input_n16`, `input_n1000` |
+| Casos borde | `input_all_equal` (σ = 0), `input_negative`, `input_extreme` |
+| Rendimiento | `input_perf_n1000`, `input_perf_n100000`, `input_perf_n1000000`, `input_perf_n50000000` |
+
+El archivo de 5×10⁷ elementos ocupa unos 200 MB.
+
+## Verificación
+
+`tools/verify.py` recalcula en doble precisión los estadísticos y el arreglo normalizado, y los compara con la salida del kernel:
 
 ```bash
-gdb --args ./bin/norm_vector data/input_small.dat data/out.dat 1
-(gdb) break normalize_array
+./bin/norm_scalar data/input_n16.dat /tmp/out.dat 1
+python3 tools/verify.py data/input_n16.dat /tmp/out.dat
+```
+
+Criterios de aceptación:
+
+- **Estadísticos:** error relativo ≤ 10⁻⁴
+- **Arreglo normalizado:** |obtenido − referencia| ≤ 10⁻⁴ + 10⁻⁴·|referencia|
+
+Opciones útiles: `--solo stats` o `--solo arreglo` para revisar una sola parte, `--rtol` y `--atol` para cambiar las tolerancias, y `--show N` para listar más elementos discrepantes.
+
+## Casos borde
+
+| Caso | Comportamiento |
+|------|----------------|
+| N = 0 | Todos los estadísticos valen 0 y no se divide entre N |
+| σ = 0 (N = 1 o todos los valores iguales) | La salida es una copia de la entrada, sin división entre cero |
+| N no múltiplo de 8 | El bucle de remanente procesa los elementos sobrantes |
+| Valores negativos | Mínimo y máximo se inicializan con `arr[0]`, no con 0 |
+
+## Medición de rendimiento
+
+```bash
+make bench
+make plot
+```
+
+`make bench` guarda los resultados en `data/bench_escalar.csv` y `data/bench_vectorial.csv`, con el tiempo promedio, la desviación estándar y los ciclos por tamaño. El driver mide solo los kernels, excluyendo la lectura y escritura de archivos, con `clock_gettime(CLOCK_MONOTONIC)` y `__rdtsc`.
+
+Para los contadores de hardware:
+
+```bash
+EV=cycles,instructions,cache-references,cache-misses
+perf stat -e $EV ./bin/norm_vector data/input_perf_n50000000.dat /tmp/o.dat 1
+perf stat -e $EV ./bin/norm_vector data/input_perf_n50000000.dat /tmp/o.dat 31
+```
+
+Como `perf` mide el proceso completo, la diferencia entre las corridas de 31 y 1 repeticiones aísla 30 ejecuciones del kernel.
+
+Si `perf` no tiene permisos:
+
+```bash
+sudo sysctl kernel.perf_event_paranoid=1
+```
+
+## Depuración con GDB
+
+Ejemplo de inspección del registro YMM en el bucle vectorial de `sum_array` con N = 16:
+
+```bash
+gdb --args ./bin/norm_vector data/input_n16.dat data/output_vector.dat 1
+```
+
+```
+(gdb) break statsvar_vector.asm:22
+(gdb) break statsvar_vector.asm:23
 (gdb) run
-(gdb) info registers ymm0
-(gdb) stepi
-(gdb) x/8fw &out[0]
+(gdb) print $ymm0.v8_float
+(gdb) print $ymm1.v8_float
+(gdb) continue
+(gdb) print $ymm0.v8_float
 ```
 
-(La sintaxis exacta para imprimir un YMM completo como 8 floats
-depende de la version de GDB instalada: pruebe `info registers ymm0`,
-`print $ymm0.v8_float`, o `p/x $ymm0` segun lo que este disponible en
-su laboratorio.)
+Los números de línea corresponden a la instrucción `vaddps ymm0, ymm0, ymm1` y a la siguiente. Si el archivo cambia, se pueden ubicar con:
+
+```bash
+grep -n "vaddps ymm0, ymm0, ymm1" asm/vector/statsvar_vector.asm
+```
+
+## Limitaciones conocidas
+
+- **Precisión en arreglos grandes:** la acumulación en float32 pierde precisión por absorción de sumandos. La versión escalar no cumple la tolerancia de 10⁻⁴ en la varianza a partir de N = 10⁶, y la vectorial en N = 5×10⁷. La versión vectorial lo atenúa porque reparte la suma en ocho acumuladores.
+- **Valores extremos:** con valores cercanos a ±3,4×10³⁸, el cuadrado de la desviación desborda float32 y la varianza resulta infinita. Suma, media, mínimo y máximo siguen siendo correctos.
+
+Estos dos casos aparecen como FALLA en `make test` y `make verify-*`. Se documentan y analizan en el informe.

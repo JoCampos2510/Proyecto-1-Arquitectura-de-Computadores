@@ -160,9 +160,9 @@ compute_stats:
 	jmp .done
 
 .done:
-	add rsp, 8		      ;*****
-	pop r15			      ;Hacer pop ***Falta comentar porque en este orden
-	pop r14                       ;y buscar rbx
+	add rsp, 8		      ;Hacer pop de los datos
+	pop r15			      
+	pop r14                       
 	pop r13
 	pop r12
 	pop rbp
@@ -219,12 +219,12 @@ normalize_array:
 	jmp .tail
 
 .copy:
-	vxorps xmm1, xmm1, xmm1      ; xmm1 = 0.0 (constante, fuera del bucle)
-	xor eax, eax
+	xor eax, eax                 ;Pone en 0
 .copy_next:
 	cmp eax, edx
 	jge .done
-	vmovss [rsi + rax*4], xmm1   ; out[i] = 0.0 (en vez de copiar in[i])
+	vmovss xmm1, [rdi + rax*4]   ; in[i]
+	vmovss [rsi + rax*4], xmm1   ; out[i] = in[i]  (sigma = 0)
 	inc eax
 	jmp .copy_next
 

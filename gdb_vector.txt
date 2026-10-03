@@ -1,0 +1,39 @@
+Punto de interrupción 1 at 0x1ad8: file asm/vector/statsvar_vector.asm, line 22.
+Punto de interrupción 2 at 0x1adc: file asm/vector/statsvar_vector.asm, line 23.
+Punto de interrupción 3 at 0x135f: file src/driver.c, line 147.
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Enable debuginfod for this session? (y or [n]) [answered N; input not from terminal]
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+[Depuración de hilo usando libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, sum_array.sum_vec_loop () at asm/vector/statsvar_vector.asm:22
+22		vaddps ymm0, ymm0, ymm1		 ;Suma de 8 floats a la vez ymm0 = ymm0 + ymm1
+$1 = {0, 0, 0, 0, 0, 0, 0, 0}
+$2 = {93.5019455, -34.8349266, -25.9080582, -6.08883762, -62.1057281, -74.0157013, -4.85901499, -54.6181297}
+
+Breakpoint 2, sum_array.sum_vec_loop () at asm/vector/statsvar_vector.asm:23
+23		add eax, 8			 ;Suma 8 al N para que vaya al siguiente float
+$3 = {93.5019455, -34.8349266, -25.9080582, -6.08883762, -62.1057281, -74.0157013, -4.85901499, -54.6181297}
+
+Breakpoint 1, sum_array.sum_vec_loop () at asm/vector/statsvar_vector.asm:22
+22		vaddps ymm0, ymm0, ymm1		 ;Suma de 8 floats a la vez ymm0 = ymm0 + ymm1
+$4 = {93.5019455, -34.8349266, -25.9080582, -6.08883762, -62.1057281, -74.0157013, -4.85901499, -54.6181297}
+$5 = {33.9627991, -12.5696163, 66.5356369, 40.0530205, -37.5266724, 66.4519577, 60.9528732, -22.504324}
+
+Breakpoint 2, sum_array.sum_vec_loop () at asm/vector/statsvar_vector.asm:23
+23		add eax, 8			 ;Suma 8 al N para que vaya al siguiente float
+$6 = {127.464745, -47.404541, 40.6275787, 33.9641838, -99.6324005, -7.56374359, 56.0938568, -77.1224518}
+
+Breakpoint 3, main (argc=<optimized out>, argv=<optimized out>) at src/driver.c:147
+147	        clock_gettime(CLOCK_MONOTONIC, &t1);
+$7 = 1.65170169
+$8 = 2521.96533
+0x555555559520:	1.8289876	-0.726547778	-0.548789561	-0.154135138
+0x555555559530:	-1.26958346	-1.50674331	-0.129646033	-1.12048507
+0x555555559540:	0.643401623	-0.283185035	1.29201519	0.764674425
+0x555555559550:	-0.780147731	1.29034889	1.18084717	-0.481011987
+$9 = (float *) 0x555555559520
