@@ -29,8 +29,8 @@ VECTOR_OBJ := $(OBJ_DIR)/stats_vector.o
 
 # Declara que los targets no son archivos
 .PHONY: all clean run-scalar run-vector dirs \
-        check-avx2 gen-data verify test-vector test-scalar test-both compare \
-        data reference test
+        check-avx2 gen-data verify \
+        data reference test test-scalar
 
 # Primer target: se ejecuta con "make" a secas
 all: dirs $(BIN_DIR)/norm_scalar $(BIN_DIR)/norm_vector
@@ -57,12 +57,16 @@ $(SCALAR_OBJ): $(ASM_SCALAR) | dirs
 $(VECTOR_OBJ): $(ASM_VECTOR) | dirs
 	$(NASM) $(NASMFLAGS) $< -o $@
 
-# --- Atajos de conveniencia (requieren haber generado data/input.dat) ---
+# --- Atajos de conveniencia ---
+# Por defecto usan data/input_n1000.dat; puedes pasar otro archivo con:
+#   make run-scalar INPUT=data/input_n16.dat
+INPUT ?= data/input_n1000.dat
+
 run-scalar: $(BIN_DIR)/norm_scalar
-	./$(BIN_DIR)/norm_scalar data/input.dat data/output_scalar.dat 10
+	./$(BIN_DIR)/norm_scalar $(INPUT) data/output_scalar.dat 10
 
 run-vector: $(BIN_DIR)/norm_vector
-	./$(BIN_DIR)/norm_vector data/input.dat data/output_vector.dat 10
+	./$(BIN_DIR)/norm_vector $(INPUT) data/output_vector.dat 10
 
 # =========================================================
 # Herramientas del companero (parte vectorial): tools/*.py
@@ -79,26 +83,8 @@ gen-data: dirs
 	python3 tools/gen_input.py 0    data/input_empty.dat random
 
 verify: all
-	./$(BIN_DIR)/norm_vector data/input.dat data/output_vector.dat 30
-	python3 tools/verify.py data/input.dat data/output_vector.dat --label vectorial
-
-# Bateria automatica de casos borde contra la referencia (tabla PASA/FALLA
-# para el informe). No depende de scripts/, solo de tools/.
-test-vector: all
-	python3 tools/run_tests.py --bin $(BIN_DIR)/norm_vector
-
-test-scalar: all
-	python3 tools/run_tests.py --bin $(BIN_DIR)/norm_scalar
-
-# Ambas versiones, una tras otra.
-test-both: test-scalar test-vector
-
-# Estadisticos de ambos kernels lado a lado contra la referencia,
-# mas speedup y diferencia entre los arreglos normalizados.
-# Cambia INPUT para usar otro archivo:  make compare INPUT=data/otro.dat
-INPUT ?= data/input.dat
-compare: all
-	python3 tools/compare_kernels.py $(INPUT) --reps 30
+	./$(BIN_DIR)/norm_vector data/input.dat data/output_vector.dat 5
+	python3 tools/verify_reference.py data/input.dat data/output_vector.dat.stats.txt
 
 # =========================================================
 # Pruebas de correctud con NumPy (parte escalar): scripts/*.py
@@ -135,6 +121,21 @@ test: all reference
 	done; \
 	exit $$fail
 
+# Igual que "test", pero SOLO para la parte escalar: no requiere que exista
+# el archivo vectorial del compañero. Útil mientras cada quien trabaja por su
+# lado.
+test-scalar: dirs $(BIN_DIR)/norm_scalar reference
+	@mkdir -p data/test_out
+	@fail=0; \
+	for f in data/input_*.dat; do \
+		case "$$f" in *input_perf_*) continue ;; esac; \
+		base=$$(basename $$f .dat); \
+		./$(BIN_DIR)/norm_scalar $$f data/test_out/$${base}_scalar.dat 1 >/dev/null; \
+		python3 $(SCRIPTS_DIR)/compare_results.py $(REF_DIR)/$${base}_normalized.dat \
+			data/test_out/$${base}_scalar.dat --label "escalar  $$base" || fail=1; \
+	done; \
+	exit $$fail
+
 # --- Limpieza ---
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR) data/reference data/test_out data/tests data/compare
+	rm -rf $(OBJ_DIR) $(BIN_DIR) data/reference data/test_out
